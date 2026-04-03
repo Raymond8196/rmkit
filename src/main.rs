@@ -16,6 +16,7 @@ use zip::ZipArchive;
 mod args;
 mod chip;
 mod keyboard_toml;
+mod migrate;
 mod version;
 
 #[tokio::main]
@@ -36,6 +37,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             local_path,
             version,
         } => init_project(project_name, chip, split, local_path, version).await,
+        args::Commands::Migrate {
+            from,
+            config,
+            keymap,
+            via_json,
+            chip,
+            target_dir,
+            version,
+        } => migrate::migrate_project(from, config, keymap, via_json, chip, target_dir, version).await,
         args::Commands::GetChip { keyboard_toml_path } => {
             let project_info = parse_keyboard_toml(&keyboard_toml_path, None)?;
             println!("{}", project_info.chip);
@@ -93,7 +103,7 @@ async fn create_project(
 }
 
 /// Postprocessing after generating project
-fn post_process(project_info: ProjectInfo) -> Result<(), Box<dyn Error>> {
+pub(crate) fn post_process(project_info: ProjectInfo) -> Result<(), Box<dyn Error>> {
     // Replace {{ project_name }} in toml/json files
     replace_in_folder(
         &project_info,
@@ -158,7 +168,7 @@ fn replace_in_folder(
     Ok(())
 }
 
-async fn download_project_template(
+pub(crate) async fn download_project_template(
     project_info: &ProjectInfo,
     commit_or_branch: &str,
 ) -> Result<(), Box<dyn Error>> {

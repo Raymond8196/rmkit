@@ -50,6 +50,37 @@ pub enum Commands {
         #[arg(long)]
         version: Option<String>,
     },
+    /// Migrate from QMK/ZMK/Vial configuration to an RMK project
+    Migrate {
+        /// Source firmware: "qmk", "zmk", or "vial"
+        #[arg(long)]
+        from: Option<String>,
+
+        /// Path to source config file (info.json / keyboard.json / .keymap / vial.json)
+        #[arg(long)]
+        config: Option<String>,
+
+        /// Path to QMK keymap.json (QMK only)
+        #[arg(long)]
+        keymap: Option<String>,
+
+        /// Path to VIA/Vial JSON file (QMK only, optional)
+        #[arg(long)]
+        via_json: Option<String>,
+
+        /// Target chip (e.g., nrf52840, rp2040)
+        #[arg(long)]
+        chip: Option<String>,
+
+        /// Output directory
+        #[arg(long)]
+        target_dir: Option<String>,
+
+        /// (Optional) RMK version
+        #[arg(long)]
+        version: Option<String>,
+    },
+
     /// Get chip name from keyboard.toml
     GetChip {
         /// Path to keyboard.toml file
