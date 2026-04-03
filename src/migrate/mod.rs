@@ -10,6 +10,7 @@ pub(crate) mod ir;
 pub(crate) mod keycode_map;
 pub(crate) mod qmk_parser;
 pub(crate) mod vial_parser;
+pub(crate) mod zmk_parser;
 
 /// Entry point for the `migrate` subcommand
 pub(crate) async fn migrate_project(
@@ -81,9 +82,34 @@ pub(crate) async fn migrate_project(
 
             ir
         }
+        "zmk" => {
+            let keymap_path = if let Some(p) = config {
+                p
+            } else {
+                Text::new("Path to ZMK .keymap file:")
+                    .with_default("./corne.keymap")
+                    .prompt()?
+            };
+            let mut ir = zmk_parser::parse_zmk_keymap(&keymap_path)
+                .map_err(|e| format!("Failed to read '{}': {}", keymap_path, e))?;
+
+            // Optionally parse .conf file
+            let conf_path = {
+                let input = Text::new("Path to .conf file (leave empty to skip):")
+                    .with_default("")
+                    .prompt()?;
+                if input.is_empty() { None } else { Some(input) }
+            };
+            if let Some(ref conf) = conf_path {
+                zmk_parser::parse_zmk_conf(conf, &mut ir)
+                    .map_err(|e| format!("Failed to read '{}': {}", conf, e))?;
+            }
+
+            ir
+        }
         other => {
             return Err(format!(
-                "Source '{}' is not yet supported. Currently supported: vial, qmk",
+                "Source '{}' is not yet supported. Currently supported: vial, qmk, zmk",
                 other
             )
             .into());

@@ -367,6 +367,287 @@ fn map_qmk_modifier_combo(s: &str) -> String {
         .join(" | ")
 }
 
+// ── ZMK Mappings ──────────────────────────────────────────────────────────
+
+/// Static mapping from ZMK keycode names to RMK keycode names.
+/// ZMK keys are stored in UPPERCASE for case-insensitive lookup.
+static ZMK_TO_RMK: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+
+    // Letters — ZMK uses bare names: A, B, C, ...
+    for c in b'A'..=b'Z' {
+        let s: &'static str = match c {
+            b'A' => "A", b'B' => "B", b'C' => "C", b'D' => "D", b'E' => "E",
+            b'F' => "F", b'G' => "G", b'H' => "H", b'I' => "I", b'J' => "J",
+            b'K' => "K", b'L' => "L", b'M' => "M", b'N' => "N", b'O' => "O",
+            b'P' => "P", b'Q' => "Q", b'R' => "R", b'S' => "S", b'T' => "T",
+            b'U' => "U", b'V' => "V", b'W' => "W", b'X' => "X", b'Y' => "Y",
+            b'Z' => "Z", _ => unreachable!(),
+        };
+        m.insert(s, s);
+    }
+
+    // Numbers — ZMK uses N1..N0
+    m.insert("N1", "Kc1");
+    m.insert("N2", "Kc2");
+    m.insert("N3", "Kc3");
+    m.insert("N4", "Kc4");
+    m.insert("N5", "Kc5");
+    m.insert("N6", "Kc6");
+    m.insert("N7", "Kc7");
+    m.insert("N8", "Kc8");
+    m.insert("N9", "Kc9");
+    m.insert("N0", "Kc0");
+    m.insert("NUMBER_1", "Kc1");
+    m.insert("NUMBER_2", "Kc2");
+    m.insert("NUMBER_3", "Kc3");
+    m.insert("NUMBER_4", "Kc4");
+    m.insert("NUMBER_5", "Kc5");
+    m.insert("NUMBER_6", "Kc6");
+    m.insert("NUMBER_7", "Kc7");
+    m.insert("NUMBER_8", "Kc8");
+    m.insert("NUMBER_9", "Kc9");
+    m.insert("NUMBER_0", "Kc0");
+
+    // Special keys
+    m.insert("RET", "Enter");
+    m.insert("RETURN", "Enter");
+    m.insert("ENTER", "Enter");
+    m.insert("ESC", "Escape");
+    m.insert("ESCAPE", "Escape");
+    m.insert("BSPC", "Backspace");
+    m.insert("BACKSPACE", "Backspace");
+    m.insert("TAB", "Tab");
+    m.insert("SPACE", "Space");
+    m.insert("SPC", "Space");
+    m.insert("MINUS", "Minus");
+    m.insert("EQUAL", "Equal");
+    m.insert("LBKT", "LeftBracket");
+    m.insert("LEFT_BRACKET", "LeftBracket");
+    m.insert("RBKT", "RightBracket");
+    m.insert("RIGHT_BRACKET", "RightBracket");
+    m.insert("BSLH", "Backslash");
+    m.insert("BACKSLASH", "Backslash");
+    m.insert("NON_US_HASH", "NonusHash");
+    m.insert("SEMI", "Semicolon");
+    m.insert("SEMICOLON", "Semicolon");
+    m.insert("SQT", "Quote");
+    m.insert("SINGLE_QUOTE", "Quote");
+    m.insert("APOSTROPHE", "Quote");
+    m.insert("APOS", "Quote");
+    m.insert("GRAVE", "Grave");
+    m.insert("COMMA", "Comma");
+    m.insert("DOT", "Dot");
+    m.insert("PERIOD", "Dot");
+    m.insert("FSLH", "Slash");
+    m.insert("SLASH", "Slash");
+    m.insert("CAPS", "CapsLock");
+    m.insert("CAPSLOCK", "CapsLock");
+    m.insert("CLCK", "CapsLock");
+
+    // Function keys
+    m.insert("F1", "F1"); m.insert("F2", "F2"); m.insert("F3", "F3");
+    m.insert("F4", "F4"); m.insert("F5", "F5"); m.insert("F6", "F6");
+    m.insert("F7", "F7"); m.insert("F8", "F8"); m.insert("F9", "F9");
+    m.insert("F10", "F10"); m.insert("F11", "F11"); m.insert("F12", "F12");
+    m.insert("F13", "F13"); m.insert("F14", "F14"); m.insert("F15", "F15");
+    m.insert("F16", "F16"); m.insert("F17", "F17"); m.insert("F18", "F18");
+    m.insert("F19", "F19"); m.insert("F20", "F20"); m.insert("F21", "F21");
+    m.insert("F22", "F22"); m.insert("F23", "F23"); m.insert("F24", "F24");
+
+    // Navigation
+    m.insert("PSCRN", "PrintScreen");
+    m.insert("PRINTSCREEN", "PrintScreen");
+    m.insert("SLCK", "ScrollLock");
+    m.insert("SCROLLLOCK", "ScrollLock");
+    m.insert("PAUSE_BREAK", "Pause");
+    m.insert("INS", "Insert");
+    m.insert("INSERT", "Insert");
+    m.insert("HOME", "Home");
+    m.insert("PG_UP", "PageUp");
+    m.insert("PAGE_UP", "PageUp");
+    m.insert("DEL", "Delete");
+    m.insert("DELETE", "Delete");
+    m.insert("END", "End");
+    m.insert("PG_DN", "PageDown");
+    m.insert("PAGE_DOWN", "PageDown");
+    m.insert("RIGHT", "Right");
+    m.insert("LEFT", "Left");
+    m.insert("DOWN", "Down");
+    m.insert("UP", "Up");
+
+    // Modifiers
+    m.insert("LSHFT", "LShift"); m.insert("LSHIFT", "LShift"); m.insert("LEFT_SHIFT", "LShift");
+    m.insert("RSHFT", "RShift"); m.insert("RSHIFT", "RShift"); m.insert("RIGHT_SHIFT", "RShift");
+    m.insert("LCTRL", "LCtrl"); m.insert("LEFT_CONTROL", "LCtrl"); m.insert("LCTL", "LCtrl");
+    m.insert("RCTRL", "RCtrl"); m.insert("RIGHT_CONTROL", "RCtrl"); m.insert("RCTL", "RCtrl");
+    m.insert("LALT", "LAlt"); m.insert("LEFT_ALT", "LAlt");
+    m.insert("RALT", "RAlt"); m.insert("RIGHT_ALT", "RAlt");
+    m.insert("LGUI", "LGui"); m.insert("LEFT_GUI", "LGui"); m.insert("LWIN", "LGui"); m.insert("LCMD", "LGui"); m.insert("LMETA", "LGui");
+    m.insert("RGUI", "RGui"); m.insert("RIGHT_GUI", "RGui"); m.insert("RWIN", "RGui"); m.insert("RCMD", "RGui"); m.insert("RMETA", "RGui");
+
+    // Numpad
+    m.insert("KP_NUM", "NumLock"); m.insert("KLCK", "NumLock");
+    m.insert("KP_SLASH", "KpSlash"); m.insert("KP_DIVIDE", "KpSlash");
+    m.insert("KP_MULTIPLY", "KpAsterisk"); m.insert("KP_ASTERISK", "KpAsterisk");
+    m.insert("KP_MINUS", "KpMinus"); m.insert("KP_SUBTRACT", "KpMinus");
+    m.insert("KP_PLUS", "KpPlus"); m.insert("KP_ENTER", "KpEnter");
+    m.insert("KP_N1", "Kp1"); m.insert("KP_NUMBER_1", "Kp1");
+    m.insert("KP_N2", "Kp2"); m.insert("KP_NUMBER_2", "Kp2");
+    m.insert("KP_N3", "Kp3"); m.insert("KP_NUMBER_3", "Kp3");
+    m.insert("KP_N4", "Kp4"); m.insert("KP_NUMBER_4", "Kp4");
+    m.insert("KP_N5", "Kp5"); m.insert("KP_NUMBER_5", "Kp5");
+    m.insert("KP_N6", "Kp6"); m.insert("KP_NUMBER_6", "Kp6");
+    m.insert("KP_N7", "Kp7"); m.insert("KP_NUMBER_7", "Kp7");
+    m.insert("KP_N8", "Kp8"); m.insert("KP_NUMBER_8", "Kp8");
+    m.insert("KP_N9", "Kp9"); m.insert("KP_NUMBER_9", "Kp9");
+    m.insert("KP_N0", "Kp0"); m.insert("KP_NUMBER_0", "Kp0");
+    m.insert("KP_DOT", "KpDot"); m.insert("KP_EQUAL", "KpEqual");
+
+    // Symbols (ZMK shifted symbols — used in keymaps as direct names)
+    m.insert("EXCL", "LShift"); // ! — no direct RMK code, these need shift+key
+    m.insert("EXCLAMATION", "LShift");
+    m.insert("AT", "LShift");  // @
+    m.insert("AT_SIGN", "LShift");
+    m.insert("HASH", "LShift"); // #
+    m.insert("POUND", "LShift");
+    m.insert("DLLR", "LShift"); // $
+    m.insert("DOLLAR", "LShift");
+    m.insert("PRCNT", "LShift"); // %
+    m.insert("PERCENT", "LShift");
+    m.insert("CARET", "LShift"); // ^
+    m.insert("AMPS", "LShift"); // &
+    m.insert("AMPERSAND", "LShift");
+    m.insert("ASTRK", "LShift"); // *
+    m.insert("ASTERISK", "LShift");
+    m.insert("STAR", "LShift");
+    m.insert("LPAR", "LShift"); // (
+    m.insert("LEFT_PARENTHESIS", "LShift");
+    m.insert("RPAR", "LShift"); // )
+    m.insert("RIGHT_PARENTHESIS", "LShift");
+    m.insert("UNDER", "LShift"); // _
+    m.insert("UNDERSCORE", "LShift");
+    m.insert("PLUS", "LShift"); // +
+    m.insert("LBRC", "LShift"); // {
+    m.insert("LEFT_BRACE", "LShift");
+    m.insert("RBRC", "LShift"); // }
+    m.insert("RIGHT_BRACE", "LShift");
+    m.insert("PIPE", "LShift"); // |
+    m.insert("TILDE", "LShift"); // ~
+
+    // Media keys
+    m.insert("C_MUTE", "AudioMute");
+    m.insert("C_VOL_UP", "AudioVolUp"); m.insert("C_VOLUME_UP", "AudioVolUp");
+    m.insert("C_VOL_DN", "AudioVolDown"); m.insert("C_VOLUME_DOWN", "AudioVolDown");
+    m.insert("C_NEXT", "MediaNextTrack");
+    m.insert("C_PREV", "MediaPrevTrack"); m.insert("C_PREVIOUS", "MediaPrevTrack");
+    m.insert("C_STOP", "MediaStop");
+    m.insert("C_PP", "MediaPlayPause"); m.insert("C_PLAY_PAUSE", "MediaPlayPause");
+    m.insert("C_BRI_UP", "BrightnessUp"); m.insert("C_BRIGHTNESS_INC", "BrightnessUp");
+    m.insert("C_BRI_DN", "BrightnessDown"); m.insert("C_BRIGHTNESS_DEC", "BrightnessDown");
+
+    m
+});
+
+/// Map a single ZMK keycode (the argument to &kp) to an RMK keycode string.
+pub(crate) fn map_zmk_keycode(zmk: &str) -> Result<String, String> {
+    let trimmed = zmk.trim();
+    let upper = trimmed.to_uppercase();
+
+    if let Some(rmk) = ZMK_TO_RMK.get(upper.as_str()) {
+        return Ok(rmk.to_string());
+    }
+
+    Err(format!("Unmapped ZMK keycode: {}", trimmed))
+}
+
+/// Map a full ZMK behavior binding (e.g. "&kp TAB", "&mo 1") to an RMK keycode string.
+///
+/// Returns Err for unsupported or unmappable behaviors.
+pub(crate) fn map_zmk_behavior(binding: &str) -> Result<String, String> {
+    let parts: Vec<&str> = binding.trim().split_whitespace().collect();
+    if parts.is_empty() {
+        return Err("Empty binding".into());
+    }
+
+    let behavior = parts[0];
+    match behavior {
+        "&kp" => {
+            if parts.len() < 2 {
+                return Err(format!("&kp missing keycode: {}", binding));
+            }
+            map_zmk_keycode(parts[1])
+        }
+        "&mo" => {
+            if parts.len() < 2 {
+                return Err(format!("&mo missing layer: {}", binding));
+            }
+            Ok(format!("MO({})", parts[1]))
+        }
+        "&lt" => {
+            if parts.len() < 3 {
+                return Err(format!("&lt missing args: {}", binding));
+            }
+            let layer = parts[1];
+            match map_zmk_keycode(parts[2]) {
+                Ok(mapped) => Ok(format!("LT({}, {})", layer, mapped)),
+                Err(e) => Err(format!("In &lt: {}", e)),
+            }
+        }
+        "&tog" => {
+            if parts.len() < 2 {
+                return Err(format!("&tog missing layer: {}", binding));
+            }
+            Ok(format!("TG({})", parts[1]))
+        }
+        "&to" => {
+            if parts.len() < 2 {
+                return Err(format!("&to missing layer: {}", binding));
+            }
+            Ok(format!("TO({})", parts[1]))
+        }
+        "&sl" => {
+            if parts.len() < 2 {
+                return Err(format!("&sl missing layer: {}", binding));
+            }
+            Ok(format!("OSL({})", parts[1]))
+        }
+        "&sk" => {
+            if parts.len() < 2 {
+                return Err(format!("&sk missing modifier: {}", binding));
+            }
+            match map_zmk_keycode(parts[1]) {
+                Ok(mapped) => Ok(format!("OSM({})", mapped)),
+                Err(e) => Err(format!("In &sk: {}", e)),
+            }
+        }
+        "&trans" => Ok("_".into()),
+        "&none" => Ok("No".into()),
+        "&mt" => {
+            // Mod-tap — RMK has no direct equivalent keycode
+            Err(format!(
+                "Unsupported ZMK behavior (mod-tap): {}. RMK uses [behavior.tap_hold] config instead.",
+                binding
+            ))
+        }
+        "&bt" | "&rgb_ug" | "&ext_power" | "&out" | "&reset" | "&bootloader" | "&sys_reset" => {
+            Err(format!(
+                "Unsupported ZMK behavior (system/BT/RGB): {}",
+                binding
+            ))
+        }
+        _ => Err(format!("Unknown ZMK behavior: {}", binding)),
+    }
+}
+
+/// Map ZMK modifier name to RMK modifier for &sk / OSM
+fn _map_zmk_modifier(zmk_mod: &str) -> String {
+    // Reuse the regular keycode map since ZMK modifiers use same names
+    map_zmk_keycode(zmk_mod).unwrap_or_else(|_| zmk_mod.to_string())
+}
+
+// ── QMK Processor Mapping ──────────────────────────────────────────────
+
 /// Map QMK processor string to RMK chip hint.
 /// Returns None if the processor has no RMK equivalent.
 pub(crate) fn map_qmk_processor(processor: &str) -> Option<String> {
@@ -516,6 +797,69 @@ mod tests {
         assert!(map_qmk_keycode("QK_BOOT").is_err());
         assert!(map_qmk_keycode("RGB_TOG").is_err());
         assert!(map_qmk_keycode("LCTL_T(KC_A)").is_err());
+    }
+
+    // ── ZMK tests ──
+
+    #[test]
+    fn test_zmk_basic_keys() {
+        assert_eq!(map_zmk_keycode("A").unwrap(), "A");
+        assert_eq!(map_zmk_keycode("Z").unwrap(), "Z");
+        assert_eq!(map_zmk_keycode("N1").unwrap(), "Kc1");
+        assert_eq!(map_zmk_keycode("N0").unwrap(), "Kc0");
+    }
+
+    #[test]
+    fn test_zmk_special_keys() {
+        assert_eq!(map_zmk_keycode("RET").unwrap(), "Enter");
+        assert_eq!(map_zmk_keycode("ESC").unwrap(), "Escape");
+        assert_eq!(map_zmk_keycode("BSPC").unwrap(), "Backspace");
+        assert_eq!(map_zmk_keycode("TAB").unwrap(), "Tab");
+        assert_eq!(map_zmk_keycode("SPACE").unwrap(), "Space");
+        assert_eq!(map_zmk_keycode("SEMI").unwrap(), "Semicolon");
+        assert_eq!(map_zmk_keycode("SQT").unwrap(), "Quote");
+        assert_eq!(map_zmk_keycode("COMMA").unwrap(), "Comma");
+        assert_eq!(map_zmk_keycode("DOT").unwrap(), "Dot");
+        assert_eq!(map_zmk_keycode("FSLH").unwrap(), "Slash");
+    }
+
+    #[test]
+    fn test_zmk_modifiers() {
+        assert_eq!(map_zmk_keycode("LSHFT").unwrap(), "LShift");
+        assert_eq!(map_zmk_keycode("LCTRL").unwrap(), "LCtrl");
+        assert_eq!(map_zmk_keycode("LGUI").unwrap(), "LGui");
+        assert_eq!(map_zmk_keycode("RALT").unwrap(), "RAlt");
+    }
+
+    #[test]
+    fn test_zmk_behavior_kp() {
+        assert_eq!(map_zmk_behavior("&kp A").unwrap(), "A");
+        assert_eq!(map_zmk_behavior("&kp TAB").unwrap(), "Tab");
+        assert_eq!(map_zmk_behavior("&kp LSHFT").unwrap(), "LShift");
+        assert_eq!(map_zmk_behavior("&kp N1").unwrap(), "Kc1");
+    }
+
+    #[test]
+    fn test_zmk_behavior_layers() {
+        assert_eq!(map_zmk_behavior("&mo 1").unwrap(), "MO(1)");
+        assert_eq!(map_zmk_behavior("&tog 2").unwrap(), "TG(2)");
+        assert_eq!(map_zmk_behavior("&to 0").unwrap(), "TO(0)");
+        assert_eq!(map_zmk_behavior("&sl 1").unwrap(), "OSL(1)");
+        assert_eq!(map_zmk_behavior("&lt 1 SPACE").unwrap(), "LT(1, Space)");
+    }
+
+    #[test]
+    fn test_zmk_behavior_special() {
+        assert_eq!(map_zmk_behavior("&trans").unwrap(), "_");
+        assert_eq!(map_zmk_behavior("&none").unwrap(), "No");
+        assert_eq!(map_zmk_behavior("&sk LSHFT").unwrap(), "OSM(LShift)");
+    }
+
+    #[test]
+    fn test_zmk_behavior_unsupported() {
+        assert!(map_zmk_behavior("&mt LCTRL A").is_err());
+        assert!(map_zmk_behavior("&bt BT_CLR").is_err());
+        assert!(map_zmk_behavior("&rgb_ug RGB_TOG").is_err());
     }
 
     #[test]
