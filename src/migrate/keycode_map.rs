@@ -504,36 +504,10 @@ static ZMK_TO_RMK: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new
     m.insert("KP_N0", "Kp0"); m.insert("KP_NUMBER_0", "Kp0");
     m.insert("KP_DOT", "KpDot"); m.insert("KP_EQUAL", "KpEqual");
 
-    // Symbols (ZMK shifted symbols — used in keymaps as direct names)
-    m.insert("EXCL", "LShift"); // ! — no direct RMK code, these need shift+key
-    m.insert("EXCLAMATION", "LShift");
-    m.insert("AT", "LShift");  // @
-    m.insert("AT_SIGN", "LShift");
-    m.insert("HASH", "LShift"); // #
-    m.insert("POUND", "LShift");
-    m.insert("DLLR", "LShift"); // $
-    m.insert("DOLLAR", "LShift");
-    m.insert("PRCNT", "LShift"); // %
-    m.insert("PERCENT", "LShift");
-    m.insert("CARET", "LShift"); // ^
-    m.insert("AMPS", "LShift"); // &
-    m.insert("AMPERSAND", "LShift");
-    m.insert("ASTRK", "LShift"); // *
-    m.insert("ASTERISK", "LShift");
-    m.insert("STAR", "LShift");
-    m.insert("LPAR", "LShift"); // (
-    m.insert("LEFT_PARENTHESIS", "LShift");
-    m.insert("RPAR", "LShift"); // )
-    m.insert("RIGHT_PARENTHESIS", "LShift");
-    m.insert("UNDER", "LShift"); // _
-    m.insert("UNDERSCORE", "LShift");
-    m.insert("PLUS", "LShift"); // +
-    m.insert("LBRC", "LShift"); // {
-    m.insert("LEFT_BRACE", "LShift");
-    m.insert("RBRC", "LShift"); // }
-    m.insert("RIGHT_BRACE", "LShift");
-    m.insert("PIPE", "LShift"); // |
-    m.insert("TILDE", "LShift"); // ~
+    // Note: ZMK shifted symbols (EXCL, AT, HASH, etc.) are intentionally
+    // NOT mapped here. They represent Shift+BaseKey combos (e.g. EXCL = LS(N1))
+    // which have no single-key equivalent in RMK. They will produce a clear
+    // warning directing the user to use the base key + modifier instead.
 
     // Media keys
     m.insert("C_MUTE", "AudioMute");
@@ -549,6 +523,42 @@ static ZMK_TO_RMK: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new
     m
 });
 
+/// ZMK shifted symbol names that need Shift+BaseKey in RMK.
+/// Maps symbol name → human-readable hint for the warning message.
+static ZMK_SHIFTED_SYMBOLS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert("EXCL", "! (use Shift + Kc1)");
+    m.insert("EXCLAMATION", "! (use Shift + Kc1)");
+    m.insert("AT", "@ (use Shift + Kc2)");
+    m.insert("AT_SIGN", "@ (use Shift + Kc2)");
+    m.insert("HASH", "# (use Shift + Kc3)");
+    m.insert("POUND", "# (use Shift + Kc3)");
+    m.insert("DLLR", "$ (use Shift + Kc4)");
+    m.insert("DOLLAR", "$ (use Shift + Kc4)");
+    m.insert("PRCNT", "% (use Shift + Kc5)");
+    m.insert("PERCENT", "% (use Shift + Kc5)");
+    m.insert("CARET", "^ (use Shift + Kc6)");
+    m.insert("AMPS", "& (use Shift + Kc7)");
+    m.insert("AMPERSAND", "& (use Shift + Kc7)");
+    m.insert("ASTRK", "* (use Shift + Kc8)");
+    m.insert("ASTERISK", "* (use Shift + Kc8)");
+    m.insert("STAR", "* (use Shift + Kc8)");
+    m.insert("LPAR", "( (use Shift + Kc9)");
+    m.insert("LEFT_PARENTHESIS", "( (use Shift + Kc9)");
+    m.insert("RPAR", ") (use Shift + Kc0)");
+    m.insert("RIGHT_PARENTHESIS", ") (use Shift + Kc0)");
+    m.insert("UNDER", "_ (use Shift + Minus)");
+    m.insert("UNDERSCORE", "_ (use Shift + Minus)");
+    m.insert("PLUS", "+ (use Shift + Equal)");
+    m.insert("LBRC", "{ (use Shift + LeftBracket)");
+    m.insert("LEFT_BRACE", "{ (use Shift + LeftBracket)");
+    m.insert("RBRC", "} (use Shift + RightBracket)");
+    m.insert("RIGHT_BRACE", "} (use Shift + RightBracket)");
+    m.insert("PIPE", "| (use Shift + Backslash)");
+    m.insert("TILDE", "~ (use Shift + Grave)");
+    m
+});
+
 /// Map a single ZMK keycode (the argument to &kp) to an RMK keycode string.
 pub(crate) fn map_zmk_keycode(zmk: &str) -> Result<String, String> {
     let trimmed = zmk.trim();
@@ -556,6 +566,14 @@ pub(crate) fn map_zmk_keycode(zmk: &str) -> Result<String, String> {
 
     if let Some(rmk) = ZMK_TO_RMK.get(upper.as_str()) {
         return Ok(rmk.to_string());
+    }
+
+    // Check if it's a shifted symbol with a specific hint
+    if let Some(hint) = ZMK_SHIFTED_SYMBOLS.get(upper.as_str()) {
+        return Err(format!(
+            "ZMK shifted symbol '{}' = {} — RMK has no single keycode for this",
+            trimmed, hint
+        ));
     }
 
     Err(format!("Unmapped ZMK keycode: {}", trimmed))
@@ -860,6 +878,19 @@ mod tests {
         assert!(map_zmk_behavior("&mt LCTRL A").is_err());
         assert!(map_zmk_behavior("&bt BT_CLR").is_err());
         assert!(map_zmk_behavior("&rgb_ug RGB_TOG").is_err());
+    }
+
+    #[test]
+    fn test_zmk_shifted_symbols_produce_error() {
+        // These should NOT silently map — they must produce errors with hints
+        let result = map_zmk_keycode("EXCL");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Shift + Kc1"), "Error should hint Shift+Kc1: {}", err);
+
+        let result = map_zmk_keycode("PIPE");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Shift + Backslash"));
     }
 
     #[test]

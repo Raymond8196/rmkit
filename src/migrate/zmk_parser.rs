@@ -58,6 +58,12 @@ pub(crate) fn parse_zmk_keymap_str(content: &str) -> Result<KeyboardIR, Box<dyn 
         ir.rows = Some(rows as u8);
         ir.cols = Some(cols as u8);
 
+        ir.warnings.push(format!(
+            "Matrix dimensions ({}x{}) are guessed from {} keys. \
+             Adjust rows/cols in keyboard.toml to match your actual hardware matrix.",
+            rows, cols, max_keys
+        ));
+
         // Reshape flat key list into rows×cols
         let mut reshaped_keymap: Vec<Vec<Vec<String>>> = Vec::new();
         for layer_keys in &keymap {
@@ -329,9 +335,13 @@ mod tests {
         // &trans should map to _
         assert!(keymap[1].iter().flatten().any(|k| k == "_"));
 
-        // Should have warnings for &bt behaviors
+        // Should have warnings for &bt behaviors and shifted symbols
         assert!(!ir.warnings.is_empty());
         assert!(ir.warnings.iter().any(|w| w.contains("BT")));
+        // Shifted symbols (EXCL, AT, etc.) in raise layer should produce warnings
+        assert!(ir.warnings.iter().any(|w| w.contains("shifted symbol")));
+        // Matrix guess warning
+        assert!(ir.warnings.iter().any(|w| w.contains("guessed")));
     }
 
     #[test]

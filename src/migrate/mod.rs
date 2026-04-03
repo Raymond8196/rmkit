@@ -62,9 +62,11 @@ pub(crate) async fn migrate_project(
             let keymap_path = if let Some(p) = keymap {
                 Some(p)
             } else {
-                let input = Text::new("Path to keymap.json (leave empty to skip):")
-                    .with_default("")
-                    .prompt()?;
+                let input = Text::new(
+                    "Path to keymap.json (export from https://config.qmk.fm, empty to skip):",
+                )
+                .with_default("")
+                .prompt()?;
                 if input.is_empty() { None } else { Some(input) }
             };
             if let Some(ref km_path) = keymap_path {
@@ -93,10 +95,15 @@ pub(crate) async fn migrate_project(
             let mut ir = zmk_parser::parse_zmk_keymap(&keymap_path)
                 .map_err(|e| format!("Failed to read '{}': {}", keymap_path, e))?;
 
-            // Optionally parse .conf file
+            // Optionally parse .conf file — guess default from .keymap path
+            let conf_default = keymap_path
+                .strip_suffix(".keymap")
+                .map(|base| format!("{}.conf", base))
+                .filter(|p| std::path::Path::new(p).exists())
+                .unwrap_or_default();
             let conf_path = {
                 let input = Text::new("Path to .conf file (leave empty to skip):")
-                    .with_default("")
+                    .with_default(&conf_default)
                     .prompt()?;
                 if input.is_empty() { None } else { Some(input) }
             };
@@ -244,11 +251,14 @@ pub(crate) async fn migrate_project(
     }
     println!();
     println!("Next steps:");
-    println!("  1. Review keyboard.toml — search for TODO to find sections needing your input");
-    println!("  2. Fill in matrix pin definitions for your hardware");
+    println!("  1. cd {}", project_dir.display());
+    println!("  2. Review keyboard.toml — search for TODO to find sections needing your input");
+    println!("  3. Fill in matrix pin definitions for your hardware");
     if ir.is_split == Some(true) {
-        println!("  3. Uncomment and configure the [split] section");
+        println!("  4. Uncomment and configure the [split] section");
     }
+    println!();
+    println!("To build:  cargo build --release");
     Ok(())
 }
 
