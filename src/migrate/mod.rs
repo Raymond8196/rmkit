@@ -230,6 +230,19 @@ pub(crate) async fn migrate_project(
 
     // 11. Print summary and warnings
     println!();
+
+    // Count migrated vs placeholder keys
+    let (total_keys, migrated_keys) = if let Some(ref keymap) = ir.keymap {
+        let total: usize = keymap.iter().flat_map(|l| l.iter().flat_map(|r| r.iter())).count();
+        let placeholders: usize = keymap.iter()
+            .flat_map(|l| l.iter().flat_map(|r| r.iter()))
+            .filter(|k| k.as_str() == "_" || k.as_str() == "No")
+            .count();
+        (total, total - placeholders)
+    } else {
+        (0, 0)
+    };
+
     if !ir.warnings.is_empty() {
         println!(
             "⚠ {} migration warning(s):",
@@ -244,8 +257,13 @@ pub(crate) async fn migrate_project(
     println!("✅ Migration complete!");
     println!("   Project: {}", project_dir.display());
     println!("   Chip:    {}", chip_or_board);
-    if ir.keymap.is_some() {
-        println!("   Keymap:  migrated ({} layers)", ir.layers.unwrap_or(0));
+    if total_keys > 0 {
+        println!(
+            "   Keymap:  {}/{} keys migrated ({} layers)",
+            migrated_keys,
+            total_keys,
+            ir.layers.unwrap_or(0)
+        );
     } else {
         println!("   Keymap:  placeholder (fill in manually)");
     }

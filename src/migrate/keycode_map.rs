@@ -322,11 +322,100 @@ pub(crate) fn map_qmk_keycode(qmk: &str) -> Result<String, String> {
                 let mapped_mod = map_qmk_modifier(args.trim());
                 return Ok(format!("OSM({})", mapped_mod));
             }
+
+            // ── Known unsupported function-style keycodes with clear messages ──
+
+            // Mod-Tap: LCTL_T(kc), RSFT_T(kc), LGUI_T(kc), etc.
+            f if f.ends_with("_T") || f == "MT" => {
+                return Err(format!(
+                    "Mod-Tap '{}' is not supported as a keycode in RMK. \
+                     Use RMK's [behavior.tap_hold] config for hold/tap behavior.",
+                    trimmed
+                ));
+            }
+
+            // Tap Dance: TD(n)
+            "TD" => {
+                return Err(format!(
+                    "Tap Dance '{}' is not supported in RMK.",
+                    trimmed
+                ));
+            }
+
+            // Modifier wrappers: S(kc), C(kc), A(kc), G(kc), LSFT(kc), LCTL(kc), etc.
+            "S" | "C" | "A" | "G"
+            | "LSFT" | "RSFT" | "LCTL" | "RCTL" | "LALT" | "RALT" | "LGUI" | "RGUI"
+            | "HYPR" | "MEH" | "LSA" | "RSA" | "LCA" | "RCA" | "SGUI" | "SCMD" | "SWIN" => {
+                return Err(format!(
+                    "Modifier wrapper '{}' cannot be mapped to a single RMK keycode. \
+                     Consider using a layer with the modifier key instead.",
+                    trimmed
+                ));
+            }
+
+            // Unicode: UC(hex)
+            "UC" => {
+                return Err(format!(
+                    "Unicode '{}' is not supported in RMK.",
+                    trimmed
+                ));
+            }
+
             _ => {}
         }
     }
 
+    // 3. Check for QMK shifted symbol aliases (KC_TILD, KC_EXLM, etc.)
+    if is_qmk_shifted_symbol(&upper) {
+        return Err(format!(
+            "QMK shifted symbol '{}' has no direct RMK equivalent. \
+             Use the base key with a Shift modifier instead.",
+            trimmed
+        ));
+    }
+
+    // 4. Check for known QMK prefixes that indicate unsupported features
+    if upper.starts_with("RGB_") {
+        return Err(format!("RGB control '{}' is not supported in RMK.", trimmed));
+    }
+    if upper.starts_with("BL_") {
+        return Err(format!("Backlight control '{}' is not supported in RMK.", trimmed));
+    }
+    if upper.starts_with("QK_") {
+        return Err(format!("QMK internal '{}' has no RMK equivalent.", trimmed));
+    }
+
     Err(format!("Unmapped QMK keycode: {}", trimmed))
+}
+
+/// Check if a QMK keycode (uppercased) is a shifted symbol alias.
+/// These are keycodes like KC_TILD, KC_EXLM, KC_PIPE etc. that
+/// represent Shift+BaseKey and have no single RMK equivalent.
+fn is_qmk_shifted_symbol(upper: &str) -> bool {
+    matches!(
+        upper,
+        "KC_TILD" | "KC_TILDE"
+            | "KC_EXLM" | "KC_EXCLAIM"
+            | "KC_AT"
+            | "KC_HASH"
+            | "KC_DLR" | "KC_DOLLAR"
+            | "KC_PERC" | "KC_PERCENT"
+            | "KC_CIRC" | "KC_CIRCUMFLEX"
+            | "KC_AMPR" | "KC_AMPERSAND"
+            | "KC_ASTR" | "KC_ASTERISK"
+            | "KC_LPRN" | "KC_LEFT_PAREN"
+            | "KC_RPRN" | "KC_RIGHT_PAREN"
+            | "KC_UNDS" | "KC_UNDERSCORE"
+            | "KC_PLUS"
+            | "KC_LCBR" | "KC_LEFT_CURLY_BRACE"
+            | "KC_RCBR" | "KC_RIGHT_CURLY_BRACE"
+            | "KC_PIPE"
+            | "KC_COLN" | "KC_COLON"
+            | "KC_DQUO" | "KC_DOUBLE_QUOTE"
+            | "KC_LABK" | "KC_LEFT_ANGLE_BRACKET"
+            | "KC_RABK" | "KC_RIGHT_ANGLE_BRACKET"
+            | "KC_QUES" | "KC_QUESTION"
+    )
 }
 
 /// Parse a function-style keycode like "MO(1)" or "LT(1, KC_SPC)"
@@ -814,7 +903,48 @@ mod tests {
     fn test_map_unknown_keycode() {
         assert!(map_qmk_keycode("QK_BOOT").is_err());
         assert!(map_qmk_keycode("RGB_TOG").is_err());
-        assert!(map_qmk_keycode("LCTL_T(KC_A)").is_err());
+    }
+
+    /// Test all known QMK edge cases that should produce clear errors
+    #[test]
+    fn test_qmk_edge_cases_all_produce_errors() {
+        // Mod-Tap — very common, must have a clear message
+        let r = map_qmk_keycode("LCTL_T(KC_A)");
+        assert!(r.is_err(), "LCTL_T should fail");
+        assert!(r.unwrap_err().contains("Mod-Tap"), "LCTL_T error should mention Mod-Tap");
+
+        let r = map_qmk_keycode("RSFT_T(KC_B)");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("Mod-Tap"));
+
+        let r = map_qmk_keycode("LGUI_T(KC_ESC)");
+        assert!(r.is_err());
+
+        // Modifier wrapping — S(KC_A) = Shift+A
+        let r = map_qmk_keycode("S(KC_1)");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("Modifier wrapper"));
+
+        let r = map_qmk_keycode("C(KC_C)");
+        assert!(r.is_err());
+
+        let r = map_qmk_keycode("HYPR(KC_A)");
+        assert!(r.is_err());
+
+        // QMK shifted symbol aliases
+        let r = map_qmk_keycode("KC_TILD");
+        assert!(r.is_err(), "KC_TILD should fail: {:?}", r);
+
+        // Tap Dance
+        let r = map_qmk_keycode("TD(0)");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("Tap Dance"));
+
+        // RGB
+        let r = map_qmk_keycode("RGB_TOG");
+        assert!(r.is_err());
+        let r = map_qmk_keycode("RGB_MOD");
+        assert!(r.is_err());
     }
 
     // ── ZMK tests ──
