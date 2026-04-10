@@ -22,6 +22,7 @@ pub(crate) async fn migrate_project(
     name: Option<String>,
     chip: Option<String>,
     split: Option<bool>,
+    layers: Option<u8>,
     target_dir: Option<String>,
     version: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
@@ -173,6 +174,11 @@ pub(crate) async fn migrate_project(
     };
 
     let layers = if let Some(l) = ir.layers {
+        l
+    } else if let Some(l) = layers {
+        if l == 0 {
+            return Err("Layer count must be at least 1.".into());
+        }
         l
     } else {
         let input = Text::new("Number of layers:").with_default("2").prompt()?;

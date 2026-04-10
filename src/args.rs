@@ -84,6 +84,10 @@ pub enum Commands {
         #[arg(long)]
         split: Option<bool>,
 
+        /// Number of layers (skips interactive prompt)
+        #[arg(long)]
+        layers: Option<u8>,
+
         /// Output directory
         #[arg(long)]
         target_dir: Option<String>,
