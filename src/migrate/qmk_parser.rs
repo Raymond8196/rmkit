@@ -46,7 +46,7 @@ pub(crate) fn parse_qmk_info_json_str(content: &str) -> Result<KeyboardIR, Box<d
         }
     }
 
-    // Matrix dimensions from matrix_pins
+    // Matrix dimensions and pin names from matrix_pins
     if let Some(matrix_pins) = v.get("matrix_pins") {
         if let Some(direct) = matrix_pins.get("direct").and_then(|d| d.as_array()) {
             // Direct pin matrix: rows = array length, cols = max inner array length
@@ -60,9 +60,24 @@ pub(crate) fn parse_qmk_info_json_str(content: &str) -> Result<KeyboardIR, Box<d
         } else {
             if let Some(rows) = matrix_pins.get("rows").and_then(|r| r.as_array()) {
                 ir.rows = Some(rows.len() as u8);
+                // Extract actual pin names for keyboard.toml output
+                let pin_names: Vec<String> = rows
+                    .iter()
+                    .filter_map(|p| p.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !pin_names.is_empty() {
+                    ir.input_pins = Some(pin_names);
+                }
             }
             if let Some(cols) = matrix_pins.get("cols").and_then(|c| c.as_array()) {
                 ir.cols = Some(cols.len() as u8);
+                let pin_names: Vec<String> = cols
+                    .iter()
+                    .filter_map(|p| p.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !pin_names.is_empty() {
+                    ir.output_pins = Some(pin_names);
+                }
             }
         }
     }
@@ -72,10 +87,14 @@ pub(crate) fn parse_qmk_info_json_str(content: &str) -> Result<KeyboardIR, Box<d
         ir.diode_direction = Some(dir.to_lowercase());
     }
 
-    // Split detection
+    // Split detection: if a "split" object exists, it's a split keyboard.
+    // Some keyboards have "split.enabled = true", others just have "split.serial" etc.
     if let Some(split) = v.get("split") {
         if let Some(enabled) = split.get("enabled").and_then(|e| e.as_bool()) {
             ir.is_split = Some(enabled);
+        } else {
+            // The mere existence of a split config object implies split keyboard
+            ir.is_split = Some(true);
         }
     }
 
@@ -90,6 +109,25 @@ pub(crate) fn parse_qmk_info_json_str(content: &str) -> Result<KeyboardIR, Box<d
         if let Some(layout_obj) = layout_obj {
             if let Some(layout_arr) = layout_obj.get("layout").and_then(|l| l.as_array()) {
                 ir.physical_layout = Some(qmk_layout_to_kle(layout_arr));
+
+                // Extract layout-to-matrix mapping and infer actual matrix dimensions.
+                // QMK keymap.json flat arrays are ordered by layout position, NOT by
+                // matrix row/col. We need this mapping to correctly place keys.
+                let mapping = extract_layout_matrix_map(layout_arr);
+                let (max_row, max_col) = mapping.iter().fold((0, 0), |(mr, mc), &(r, c)| {
+                    (mr.max(r), mc.max(c))
+                });
+                ir.layout_matrix_map = Some(mapping);
+
+                // Infer actual matrix dimensions from layout's max matrix indices.
+                // This is critical for split keyboards where matrix_pins only contains
+                // one half's pins, but the layout references the full matrix.
+                if max_row + 1 > ir.rows.unwrap_or(0) as usize {
+                    ir.rows = Some((max_row + 1) as u8);
+                }
+                if max_col + 1 > ir.cols.unwrap_or(0) as usize {
+                    ir.cols = Some((max_col + 1) as u8);
+                }
             }
         }
     }
@@ -118,31 +156,53 @@ pub(crate) fn parse_qmk_keymap_json_str(
         let mut keymap = Vec::new();
         for (layer_idx, layer) in layers.iter().enumerate() {
             if let Some(keys) = layer.as_array() {
-                // QMK keymap.json stores keys as a flat array per layer.
-                // We need to reshape into rows × cols.
-                let mut layer_map: Vec<Vec<String>> = Vec::new();
-                for r in 0..rows {
-                    let mut row_map = Vec::new();
-                    for c in 0..cols {
-                        let idx = r * cols + c;
-                        let rmk_key = if let Some(qmk_key) = keys.get(idx).and_then(|k| k.as_str())
-                        {
-                            match keycode_map::map_qmk_keycode(qmk_key) {
-                                Ok(mapped) => mapped,
-                                Err(warning) => {
-                                    ir.warnings.push(format!(
-                                        "Layer {}, position [{},{}]: {}",
-                                        layer_idx, r, c, warning
-                                    ));
-                                    "_".to_string()
-                                }
+                // Initialize a rows×cols grid filled with "_"
+                let mut layer_map: Vec<Vec<String>> = (0..rows)
+                    .map(|_| vec!["_".to_string(); cols])
+                    .collect();
+
+                if let Some(ref matrix_map) = ir.layout_matrix_map {
+                    // Use layout-to-matrix mapping: the flat keymap array is ordered
+                    // by layout position (not by row*cols+col). Place each key at its
+                    // correct matrix[row][col] position.
+                    for (key_idx, qmk_key) in keys.iter().enumerate() {
+                        let (r, c) = matrix_map.get(key_idx).copied().unwrap_or((0, 0));
+                        if r < rows && c < cols {
+                            if let Some(qmk_str) = qmk_key.as_str() {
+                                let rmk_key = match keycode_map::map_qmk_keycode(qmk_str) {
+                                    Ok(mapped) => mapped,
+                                    Err(warning) => {
+                                        ir.warnings.push(format!(
+                                            "Layer {}, position [{},{}]: {}",
+                                            layer_idx, r, c, warning
+                                        ));
+                                        "_".to_string()
+                                    }
+                                };
+                                layer_map[r][c] = rmk_key;
                             }
-                        } else {
-                            "_".to_string()
-                        };
-                        row_map.push(rmk_key);
+                        }
                     }
-                    layer_map.push(row_map);
+                } else {
+                    // Fallback: no layout mapping available, use simple row-major order
+                    for r in 0..rows {
+                        for c in 0..cols {
+                            let idx = r * cols + c;
+                            if let Some(qmk_key) = keys.get(idx).and_then(|k| k.as_str()) {
+                                let rmk_key = match keycode_map::map_qmk_keycode(qmk_key) {
+                                    Ok(mapped) => mapped,
+                                    Err(warning) => {
+                                        ir.warnings.push(format!(
+                                            "Layer {}, position [{},{}]: {}",
+                                            layer_idx, r, c, warning
+                                        ));
+                                        "_".to_string()
+                                    }
+                                };
+                                layer_map[r][c] = rmk_key;
+                            }
+                        }
+                    }
                 }
                 keymap.push(layer_map);
             }
@@ -240,6 +300,24 @@ fn qmk_layout_to_kle(layout: &[Value]) -> Value {
     }
 
     Value::Array(kle_rows)
+}
+
+/// Extract (row, col) matrix positions from a QMK layout array, in layout order.
+/// Returns a Vec where index i corresponds to the i-th key in the flat keymap array.
+fn extract_layout_matrix_map(layout: &[Value]) -> Vec<(usize, usize)> {
+    layout
+        .iter()
+        .map(|key| {
+            if let Some(matrix) = key.get("matrix").and_then(|m| m.as_array()) {
+                if matrix.len() == 2 {
+                    let r = matrix[0].as_u64().unwrap_or(0) as usize;
+                    let c = matrix[1].as_u64().unwrap_or(0) as usize;
+                    return (r, c);
+                }
+            }
+            (0, 0)
+        })
+        .collect()
 }
 
 fn parse_hex(s: &str) -> Option<u16> {
@@ -437,4 +515,5 @@ mod tests {
         assert_eq!(ir.warnings.len(), 1);
         assert!(ir.warnings[0].contains("atmega32u4"));
     }
+
 }

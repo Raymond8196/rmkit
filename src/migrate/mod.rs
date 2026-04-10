@@ -18,7 +18,10 @@ pub(crate) async fn migrate_project(
     config: Option<String>,
     keymap: Option<String>,
     via_json: Option<String>,
+    conf: Option<String>,
+    name: Option<String>,
     chip: Option<String>,
+    split: Option<bool>,
     target_dir: Option<String>,
     version: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
@@ -89,27 +92,28 @@ pub(crate) async fn migrate_project(
                 p
             } else {
                 Text::new("Path to ZMK .keymap file:")
-                    .with_default("./corne.keymap")
                     .prompt()?
             };
             let mut ir = zmk_parser::parse_zmk_keymap(&keymap_path)
                 .map_err(|e| format!("Failed to read '{}': {}", keymap_path, e))?;
 
-            // Optionally parse .conf file — guess default from .keymap path
-            let conf_default = keymap_path
-                .strip_suffix(".keymap")
-                .map(|base| format!("{}.conf", base))
-                .filter(|p| std::path::Path::new(p).exists())
-                .unwrap_or_default();
-            let conf_path = {
+            // Optionally parse .conf file
+            let conf_path = if let Some(p) = conf.clone() {
+                if p.is_empty() { None } else { Some(p) }
+            } else {
+                let conf_default = keymap_path
+                    .strip_suffix(".keymap")
+                    .map(|base| format!("{}.conf", base))
+                    .filter(|p| std::path::Path::new(p).exists())
+                    .unwrap_or_default();
                 let input = Text::new("Path to .conf file (leave empty to skip):")
                     .with_default(&conf_default)
                     .prompt()?;
                 if input.is_empty() { None } else { Some(input) }
             };
-            if let Some(ref conf) = conf_path {
-                zmk_parser::parse_zmk_conf(conf, &mut ir)
-                    .map_err(|e| format!("Failed to read '{}': {}", conf, e))?;
+            if let Some(ref conf_file) = conf_path {
+                zmk_parser::parse_zmk_conf(conf_file, &mut ir)
+                    .map_err(|e| format!("Failed to read '{}': {}", conf_file, e))?;
             }
 
             ir
@@ -124,22 +128,28 @@ pub(crate) async fn migrate_project(
     };
 
     // 3. Interactive prompts for missing fields
-    let default_name = ir
-        .name
-        .as_deref()
-        .or(ir.manufacturer.as_deref())
-        .unwrap_or("my_keyboard")
-        .replace(" ", "_");
-    let project_name = Text::new("Project name:")
-        .with_default(&default_name)
-        .prompt()?
-        .replace(" ", "_");
+    let project_name = if let Some(n) = name {
+        n.replace(" ", "_")
+    } else {
+        let default_name = ir
+            .name
+            .as_deref()
+            .or(ir.manufacturer.as_deref())
+            .unwrap_or("my_keyboard")
+            .replace(" ", "_");
+        Text::new("Project name:")
+            .with_default(&default_name)
+            .prompt()?
+            .replace(" ", "_")
+    };
 
     let split = if let Some(s) = ir.is_split {
         println!(
             "  Detected keyboard type: {}",
             if s { "split" } else { "normal" }
         );
+        s
+    } else if let Some(s) = split {
         s
     } else {
         Select::new("Keyboard type?", vec!["normal", "split"]).prompt()? == "split"
@@ -191,6 +201,10 @@ pub(crate) async fn migrate_project(
     };
 
     // 5. Generate keyboard.toml content
+    // Use the project name as keyboard name if none was detected from the config
+    if ir.name.is_none() {
+        ir.name = Some(project_name.clone());
+    }
     ir.ble_enabled = Some(is_ble_chip(&chip_or_board));
     let keyboard_toml_content = converter::generate_keyboard_toml(&ir, &chip_or_board)?;
 

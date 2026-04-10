@@ -42,10 +42,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             config,
             keymap,
             via_json,
+            conf,
+            name,
             chip,
+            split,
             target_dir,
             version,
-        } => migrate::migrate_project(from, config, keymap, via_json, chip, target_dir, version).await,
+        } => migrate::migrate_project(from, config, keymap, via_json, conf, name, chip, split, target_dir, version).await,
         args::Commands::GetChip { keyboard_toml_path } => {
             let project_info = parse_keyboard_toml(&keyboard_toml_path, None)?;
             println!("{}", project_info.chip);

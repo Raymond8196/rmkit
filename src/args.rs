@@ -68,9 +68,21 @@ pub enum Commands {
         #[arg(long)]
         via_json: Option<String>,
 
+        /// Path to ZMK .conf file (ZMK only, optional)
+        #[arg(long)]
+        conf: Option<String>,
+
+        /// Project name (skips interactive prompt)
+        #[arg(long)]
+        name: Option<String>,
+
         /// Target chip (e.g., nrf52840, rp2040)
         #[arg(long)]
         chip: Option<String>,
+
+        /// Keyboard type: split or normal (skips interactive prompt)
+        #[arg(long)]
+        split: Option<bool>,
 
         /// Output directory
         #[arg(long)]

@@ -21,7 +21,13 @@ pub(crate) fn generate_keyboard_toml(
     writeln!(out, "[keyboard]")?;
     writeln!(out, "name = \"{}\"", name.replace(" ", "_"))?;
     writeln!(out, "product_name = \"{}\"", name)?;
+    if ir.vendor_id.is_none() {
+        writeln!(out, "# TODO: Set your USB vendor ID")?;
+    }
     writeln!(out, "vendor_id = {:#06X}", vid)?;
+    if ir.product_id.is_none() {
+        writeln!(out, "# TODO: Set your USB product ID")?;
+    }
     writeln!(out, "product_id = {:#06X}", pid)?;
     writeln!(out, "manufacturer = \"{}\"", manufacturer)?;
     writeln!(out, "chip = \"{}\"", chip)?;
@@ -99,16 +105,16 @@ pub(crate) fn generate_keyboard_toml(
     }
 
     // [split] section hint
+    // Split keyboards share the same column count per half; rows are divided.
     if ir.is_split == Some(true) {
         let half_rows = rows / 2;
-        let half_cols = cols / 2;
         writeln!(out, "# TODO: Configure split keyboard settings")?;
         writeln!(out, "# [split]")?;
         writeln!(out, "# connection = \"ble\"")?;
         writeln!(out, "#")?;
         writeln!(out, "# [split.central]")?;
         writeln!(out, "# rows = {}", half_rows)?;
-        writeln!(out, "# cols = {}", half_cols)?;
+        writeln!(out, "# cols = {}", cols)?;
         writeln!(out, "# row_offset = 0")?;
         writeln!(out, "# col_offset = 0")?;
         writeln!(out, "# ble_addr = [0x18, 0xe2, 0x21, 0x80, 0xc0, 0xc7]")?;
@@ -121,14 +127,14 @@ pub(crate) fn generate_keyboard_toml(
         writeln!(
             out,
             "# output_pins = [{}]",
-            generate_placeholder_pins(half_cols as usize, chip)
+            generate_placeholder_pins(cols as usize, chip)
         )?;
         writeln!(out, "#")?;
         writeln!(out, "# [[split.peripheral]]")?;
         writeln!(out, "# rows = {}", half_rows)?;
-        writeln!(out, "# cols = {}", half_cols)?;
+        writeln!(out, "# cols = {}", cols)?;
         writeln!(out, "# row_offset = {}", half_rows)?;
-        writeln!(out, "# col_offset = {}", half_cols)?;
+        writeln!(out, "# col_offset = 0")?;
         writeln!(out, "# ble_addr = [0x7e, 0xfe, 0x73, 0x9e, 0x66, 0xe3]")?;
         writeln!(out, "# [split.peripheral.matrix]")?;
         writeln!(
@@ -139,7 +145,7 @@ pub(crate) fn generate_keyboard_toml(
         writeln!(
             out,
             "# output_pins = [{}]",
-            generate_placeholder_pins(half_cols as usize, chip)
+            generate_placeholder_pins(cols as usize, chip)
         )?;
         writeln!(out)?;
     }

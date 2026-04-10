@@ -366,16 +366,16 @@ pub(crate) fn map_qmk_keycode(qmk: &str) -> Result<String, String> {
     }
 
     // 3. Check for QMK shifted symbol aliases (KC_TILD, KC_EXLM, etc.)
-    if is_qmk_shifted_symbol(&upper) {
+    if let Some(hint) = qmk_shifted_symbol_hint(&upper) {
         return Err(format!(
-            "QMK shifted symbol '{}' has no direct RMK equivalent. \
-             Use the base key with a Shift modifier instead.",
-            trimmed
+            "QMK shifted symbol '{}' → {}. \
+             RMK has no single-key equivalent; use WM(LShift, {}) in keymap.",
+            trimmed, hint.0, hint.1
         ));
     }
 
     // 4. Check for known QMK prefixes that indicate unsupported features
-    if upper.starts_with("RGB_") {
+    if upper.starts_with("RGB_") || upper.starts_with("RM_") {
         return Err(format!("RGB control '{}' is not supported in RMK.", trimmed));
     }
     if upper.starts_with("BL_") {
@@ -384,38 +384,41 @@ pub(crate) fn map_qmk_keycode(qmk: &str) -> Result<String, String> {
     if upper.starts_with("QK_") {
         return Err(format!("QMK internal '{}' has no RMK equivalent.", trimmed));
     }
+    if upper == "EE_CLR" {
+        return Err("EEPROM clear 'EE_CLR' has no RMK equivalent.".into());
+    }
 
     Err(format!("Unmapped QMK keycode: {}", trimmed))
 }
 
-/// Check if a QMK keycode (uppercased) is a shifted symbol alias.
+/// Return (symbol_description, rmk_base_key) for QMK shifted symbol aliases.
 /// These are keycodes like KC_TILD, KC_EXLM, KC_PIPE etc. that
 /// represent Shift+BaseKey and have no single RMK equivalent.
-fn is_qmk_shifted_symbol(upper: &str) -> bool {
-    matches!(
-        upper,
-        "KC_TILD" | "KC_TILDE"
-            | "KC_EXLM" | "KC_EXCLAIM"
-            | "KC_AT"
-            | "KC_HASH"
-            | "KC_DLR" | "KC_DOLLAR"
-            | "KC_PERC" | "KC_PERCENT"
-            | "KC_CIRC" | "KC_CIRCUMFLEX"
-            | "KC_AMPR" | "KC_AMPERSAND"
-            | "KC_ASTR" | "KC_ASTERISK"
-            | "KC_LPRN" | "KC_LEFT_PAREN"
-            | "KC_RPRN" | "KC_RIGHT_PAREN"
-            | "KC_UNDS" | "KC_UNDERSCORE"
-            | "KC_PLUS"
-            | "KC_LCBR" | "KC_LEFT_CURLY_BRACE"
-            | "KC_RCBR" | "KC_RIGHT_CURLY_BRACE"
-            | "KC_PIPE"
-            | "KC_COLN" | "KC_COLON"
-            | "KC_DQUO" | "KC_DOUBLE_QUOTE"
-            | "KC_LABK" | "KC_LEFT_ANGLE_BRACKET"
-            | "KC_RABK" | "KC_RIGHT_ANGLE_BRACKET"
-            | "KC_QUES" | "KC_QUESTION"
-    )
+fn qmk_shifted_symbol_hint(upper: &str) -> Option<(&'static str, &'static str)> {
+    match upper {
+        "KC_TILD" | "KC_TILDE" => Some(("Shift+`", "Grave")),
+        "KC_EXLM" | "KC_EXCLAIM" => Some(("Shift+1", "Kc1")),
+        "KC_AT" => Some(("Shift+2", "Kc2")),
+        "KC_HASH" => Some(("Shift+3", "Kc3")),
+        "KC_DLR" | "KC_DOLLAR" => Some(("Shift+4", "Kc4")),
+        "KC_PERC" | "KC_PERCENT" => Some(("Shift+5", "Kc5")),
+        "KC_CIRC" | "KC_CIRCUMFLEX" => Some(("Shift+6", "Kc6")),
+        "KC_AMPR" | "KC_AMPERSAND" => Some(("Shift+7", "Kc7")),
+        "KC_ASTR" | "KC_ASTERISK" => Some(("Shift+8", "Kc8")),
+        "KC_LPRN" | "KC_LEFT_PAREN" => Some(("Shift+9", "Kc9")),
+        "KC_RPRN" | "KC_RIGHT_PAREN" => Some(("Shift+0", "Kc0")),
+        "KC_UNDS" | "KC_UNDERSCORE" => Some(("Shift+-", "Minus")),
+        "KC_PLUS" => Some(("Shift+=", "Equal")),
+        "KC_LCBR" | "KC_LEFT_CURLY_BRACE" => Some(("Shift+[", "LBracket")),
+        "KC_RCBR" | "KC_RIGHT_CURLY_BRACE" => Some(("Shift+]", "RBracket")),
+        "KC_PIPE" => Some(("Shift+\\", "Backslash")),
+        "KC_COLN" | "KC_COLON" => Some(("Shift+;", "Semicolon")),
+        "KC_DQUO" | "KC_DOUBLE_QUOTE" => Some(("Shift+'", "Quote")),
+        "KC_LABK" | "KC_LEFT_ANGLE_BRACKET" => Some(("Shift+,", "Comma")),
+        "KC_RABK" | "KC_RIGHT_ANGLE_BRACKET" => Some(("Shift+.", "Dot")),
+        "KC_QUES" | "KC_QUESTION" => Some(("Shift+/", "Slash")),
+        _ => None,
+    }
 }
 
 /// Parse a function-style keycode like "MO(1)" or "LT(1, KC_SPC)"
