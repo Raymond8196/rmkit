@@ -129,14 +129,14 @@ pub(crate) async fn migrate_project(
 
     // 3. Interactive prompts for missing fields
     let project_name = if let Some(n) = name {
-        n.replace(" ", "_")
+        sanitize_project_name(&n)
     } else {
         let default_name = ir
             .name
             .as_deref()
             .or(ir.manufacturer.as_deref())
-            .unwrap_or("my_keyboard")
-            .replace(" ", "_");
+            .unwrap_or("my_keyboard");
+        let default_name = sanitize_project_name(default_name);
         Text::new("Project name:")
             .with_default(&default_name)
             .prompt()?
@@ -176,7 +176,13 @@ pub(crate) async fn migrate_project(
         l
     } else {
         let input = Text::new("Number of layers:").with_default("2").prompt()?;
-        input.parse::<u8>()?
+        let parsed: u8 = input
+            .parse()
+            .map_err(|_| format!("Invalid layer count '{}': must be a number 1-32", input))?;
+        if parsed == 0 {
+            return Err("Layer count must be at least 1.".into());
+        }
+        parsed
     };
     ir.layers = Some(layers);
 
@@ -184,6 +190,11 @@ pub(crate) async fn migrate_project(
     let board_chip_map = get_board_chip_map();
     if let Some(c) = board_chip_map.get(chip_or_board.as_str()) {
         chip_or_board = c.to_string();
+    } else if !is_known_chip_prefix(&chip_or_board) {
+        println!(
+            "  ⚠ Chip '{}' is not in the known list. Template download may fail.",
+            chip_or_board
+        );
     }
 
     let remote_folder = if split {
@@ -192,7 +203,7 @@ pub(crate) async fn migrate_project(
         chip_or_board.clone()
     };
 
-    let uf2_key = if chip_or_board.starts_with("stm32") {
+    let uf2_key = if chip_or_board.starts_with("stm32") && chip_or_board.len() >= 7 {
         chip_or_board[..7].to_string()
     } else if chip_or_board == "pico_w" {
         "rp2040".to_string()
@@ -294,8 +305,32 @@ pub(crate) async fn migrate_project(
     Ok(())
 }
 
+fn is_known_chip_prefix(chip: &str) -> bool {
+    chip.starts_with("nrf")
+        || chip.starts_with("rp")
+        || chip.starts_with("stm32")
+        || chip.starts_with("esp32")
+        || chip == "pico_w"
+}
+
 fn is_ble_chip(chip: &str) -> bool {
     chip.starts_with("nrf")
         || chip.starts_with("esp32")
         || chip == "pico_w"
+}
+
+/// Sanitize a project name to be a valid Cargo crate name.
+/// Keeps only alphanumeric, underscore, and hyphen; replaces spaces with underscores;
+/// strips other characters like parentheses.
+fn sanitize_project_name(name: &str) -> String {
+    let s: String = name
+        .chars()
+        .map(|c| if c == ' ' { '_' } else { c })
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    if s.is_empty() {
+        "my_keyboard".to_string()
+    } else {
+        s
+    }
 }
