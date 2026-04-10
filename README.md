@@ -51,10 +51,13 @@ Now rmkit can be used to generate RMK project directly from `keyboard.toml` and 
 
 ### Migrate from QMK
 
-You'll need your QMK `keyboard.json` (or `info.json`). Optionally, export a `keymap.json` from [QMK Configurator](https://config.qmk.fm) to migrate your keymap, and provide a `via.json` for Vial support.
+You'll need:
+- `keyboard.json` or `info.json` — find it in your QMK keyboard directory (e.g. `qmk_firmware/keyboards/<your_keyboard>/`)
+- (Optional) `keymap.json` — export from [QMK Configurator](https://config.qmk.fm) to migrate your keymap
+- (Optional) `via.json` — if your keyboard supports VIA/Vial
 
 ```shell
-# Interactive
+# Interactive — just follow the prompts
 rmkit migrate --from qmk
 
 # Non-interactive
@@ -69,7 +72,9 @@ rmkit migrate --from qmk \
 
 ### Migrate from ZMK
 
-You'll need your ZMK `.keymap` file. Optionally provide the `.conf` file for keyboard name and split/BLE settings.
+You'll need:
+- `.keymap` file — from your ZMK config repo (e.g. `zmk-config/config/<keyboard>.keymap`)
+- (Optional) `.conf` file — for keyboard name and split/BLE settings
 
 ```shell
 # Interactive
@@ -87,14 +92,22 @@ rmkit migrate --from zmk \
 
 ### Migrate from Vial
 
-If you have a `vial.json` exported from Vial, you can use it to generate a project skeleton.
+If you have a `vial.json` (exported from Vial or from your keyboard's source repo), you can generate a project skeleton with the correct matrix dimensions and physical layout. Note that Vial JSON does not contain keymap data, so you'll need to fill in the keymap manually.
 
 ```shell
-rmkit migrate --from vial --config vial.json --chip nrf52840 --name my_keyboard
+rmkit migrate --from vial \
+  --config vial.json \
+  --chip nrf52840 \
+  --name my_keyboard \
+  --layers 2 \
+  --target-dir ./my_keyboard
 ```
 
 ### After migration
 
-- Search for `TODO` in the generated `keyboard.toml` to find sections that need manual input (pin definitions, split config, etc.)
-- Review the migration warnings — they list keycodes that couldn't be automatically mapped
-- Run `cargo build --release` to build your firmware
+1. `cd` into the generated project directory
+2. Search for `TODO` in `keyboard.toml` — fill in pin definitions, split config, etc.
+3. Review the migration warnings — they list keycodes that couldn't be automatically mapped and suggest alternatives
+4. Run `cargo build --release` to build your firmware
+
+> **Tip:** Some QMK/ZMK features (Mod-Tap, Tap Dance, RGB controls, etc.) cannot be mapped automatically. The migration will warn you about these — check the [RMK documentation](https://haobogu.github.io/rmk/) for how to configure them in RMK.
